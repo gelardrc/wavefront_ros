@@ -25,7 +25,7 @@ Thats a package that implements wavefront algorithm in a occupancy grid via ROS 
 
 If everything goes right, you should see this on Rviz:
 
-![]([https://github.com/Your_Repository_Name/Your_GIF_Name.gif](https://github.com/gelardrc/wavefront_ros/blob/main/img/path.gif))
+![mapa]([https://github.com/Your_Repository_Name/Your_GIF_Name.gif](https://github.com/gelardrc/wavefront_ros/blob/main/img/path.gif))
 
 
 # To do list

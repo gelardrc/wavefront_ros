@@ -17,11 +17,16 @@ Thats a package that implements wavefront algorithm in a occupancy grid via ROS 
 
 # How to run 
 
-> rosrun rosrun wavefront_ros wavefront_a_star.py 
+> rosrun wavefront_ros wavefront_a_star.py 
 
 # Examples
 
 > roslaunch wavefront_ros example.launch
+
+If everything goes right, you should see this on Rviz:
+
+![]([https://github.com/Your_Repository_Name/Your_GIF_Name.gif](https://github.com/gelardrc/wavefront_ros/blob/main/img/path.gif))
+
 
 # To do list
 

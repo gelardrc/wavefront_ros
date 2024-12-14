@@ -1,5 +1,5 @@
 # wavefront_ros
-Thats a package that implements wavefront algorithm in a occupancy grid via ROS messages.
+Thats a package that implements wavefront algorithm in a occupancy grid via ROS2 messages.
 ---------------------------------------------
 # How to install
 > git clone https://github.com/gelardrc/wavefront_ros.git

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 ## codigo de teste para wavefront ##
 import rospy

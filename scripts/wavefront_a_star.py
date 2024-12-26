@@ -5,6 +5,7 @@ import rospy
 from nav_msgs.msg import OccupancyGrid, Path
 from geometry_msgs.msg import PoseStamped,Point
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 import math
 import heapq
@@ -67,7 +68,6 @@ def construct_graph(field,grid=1,mov=8):
 
 def wavefront(nodes,goal,graph):
   visited_nodes = []
-
   nodes[goal[0],goal[1]].peso = 0
 
   visited_nodes.append(goal)
@@ -84,79 +84,6 @@ def wavefront(nodes,goal,graph):
         visited_nodes.append(vizinho)
 
   return nodes
-
-def get_worst_path(graph,nodes,start):
-  path = []
-  actual = start
-  path_node = None
-  visited_nodes = []
-  visited_nodes.append(actual)
-  cont = 0
-  backtrack = []
-  while len(visited_nodes) < len(nodes):
-
-    best = float('-inf')
-
-    for vizinho in graph[actual[0],actual[1]]:
-
-
-      if nodes[vizinho[0],vizinho[1]].peso > best and vizinho not in path:
-
-         best = nodes[vizinho[0],vizinho[1]].peso
-
-         path_node = vizinho
-    
-    ## ate aqui o funcionamento é o normal, ou seja ele desconsidera o fato de poder ficar preso
-
-    if path_node != actual and path_node not in path: ## aqui eu fiz uma verificação estranha, eu meio que volto 
-
-      if cont > 0:
-        for i in backtrack:
-          path.append(i)
-        #path.append(actual)
-
-      path.append(path_node)
-
-      visited_nodes.append(actual)
-
-      actual = path_node
-
-      backtrack = []
-
-
-      cont = 0
-
-      #print('nao ha ninguem melhor',actual)
-
-    else:
-      #print('Vamos rezar')
-      cont += 1
-      if cont > len(path):
-        break
-      actual = path[-cont]
-  
-      backtrack.append(actual)
-
-
-
-  return path
-
-def printi(field,path):
-    for x in range(field.shape[0]):
-        for y in range(field.shape[1]):
-          if field[x,y] == 1:
-            plt.scatter(x,y,marker="s",color="black")
-          else:
-            field[x,y] = 0  
-    x_i= []
-    y_i =[]
-    for i in path:
-        x_i.append(i[0])
-        y_i.append(i[1])
-    
-    plt.plot(x_i,y_i,color='r')
-
-    plt.show()
 
 def calculate_orientation(x1, y1, x2, y2):
     """Calcula a orientação (em radianos) entre dois pontos"""
@@ -269,7 +196,7 @@ def reconstruct_path(came_from, current):
     return path
 
 
-def get_worst_path_with_fallback(graph, nodes, start, field,goal):
+def get_worst_path_with_fallback(graph, nodes, start, field,goal,origin):
     """Wavefront planning with fallback to A*."""
     path = []
     actual = start
@@ -331,7 +258,7 @@ def get_worst_path_with_fallback(graph, nodes, start, field,goal):
                     rospy.logwarn("A* could not find a fallback path.")
                     break
         if animated:    
-          send_msg(path,Point(-33,-33,0))
+          send_msg(path,Point(origin.x,origin.y,0))
 
     return path
 
@@ -356,7 +283,15 @@ def main(msg):
     default_goal  = [29,44] # random goal 
     default_start = [34,25] # random start 
 
-    start = list(rospy.get_param("start", default_start))
+    start = eval(rospy.get_param("start", default_start))
+
+    if field[start[0],start[1]] == 1:
+      rospy.loginfo("Bad start, it's not in free_space")
+      while field[start[0],start[1]] == 1:
+        rospy.loginfo_once("Searching a valid one--> {}".format(start))
+        start = [random.randint(0,height-1),random.randint(0,width-1)]
+      rospy.loginfo("Changing start for --> {}".format(start))
+
     
     #rospy.loginfo("start[0] = {}".format(start[0]))
     #rospy.loginfo("start[1] = {}".format(start[1]))
@@ -364,7 +299,17 @@ def main(msg):
 
 
     #start = [start[1],start[2]]
-    goal =  rospy.get_param("goal",   default_goal)
+    goal =  eval(rospy.get_param("goal",   default_goal))
+
+
+    if field[goal[0],goal[1]] == 1:
+      rospy.loginfo("Bad goal, it's not in free_space")
+      while field[goal[0],goal[1]] == 1:
+        rospy.loginfo_once("Searching a valid one--> {}".format(goal))
+        goal = [random.randint(0,height-1),random.randint(0,width-1)]
+      rospy.loginfo("Changing goal for --> {}".format(goal))
+
+
     #goal = [goal[1],goal[3]] ## uma gambiarra, deve ter jeito melhor de fazer isso
     rospy.loginfo("Start node : [{0},{1}] , goal : [{2},{3}]".format(start[0],start[1],goal[0],goal[1]))
 
@@ -374,9 +319,7 @@ def main(msg):
 
     rospy.loginfo("Finding path ....")
 
-    #path = get_worst_path(graph,nodes,start)
-
-    path = get_worst_path_with_fallback(graph,nodes,start,field,goal)
+    path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin)
 
     rospy.loginfo("Printing path ....")
 

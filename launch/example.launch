@@ -1,10 +1,15 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="animated" default="True"/>
-    <node name="map_server" pkg="map_server" type="map_server" args="$(find wavefront_ros)/map/example.yaml"/>
+    <arg name="map" default="true"/>
+    <arg name="start" default="[33,38]"/>
+    <arg name="goal" default="[30,38]"/>
+    <param name="start" value="$(arg start)"/>
+    <param name="goal" value="$(arg goal)"/>
+    <node if="$(arg map)" name="map_server" pkg="map_server" type="map_server" args="$(find wavefront_ros)/map/example.yaml"/>
     <node name="Wavefront" pkg="wavefront_ros" type="wavefront_a_star.py" output="screen">
-        <param name="start" value="[33, 38]" />
-        <param name="goal" value="[30, 33]" />
+        <!--param name="start" value="[33, 38]" /-->
+        <!--param name="goal" value="[30, 33]" /-->
         <param name="BUFFER_RADIUS" value="1" />
         <param name="animated" value="$(arg animated)" />
     </node>

@@ -1,0 +1,3 @@
+start,goal,overlaps,direction_changes,score
+"[4, 5]","[4, 10]",367,332,699
+"[4, 5]","[4, 11]",396,340,736

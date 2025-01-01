@@ -1,0 +1,14 @@
+{
+    "start": [
+        25,
+        34
+    ],
+    "goal": [
+        37,
+        14
+    ],
+    "overlaps": 126,
+    "direction_changes": 318,
+    "time": 12.319980144500732,
+    "score": 444
+}

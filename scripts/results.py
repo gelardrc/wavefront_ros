@@ -1,16 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-## codigo de teste para wavefront ##
+## If you want to try all valid start and goals in your map and save it on a pandas dataframe ##
+
 import rospy
 from nav_msgs.msg import OccupancyGrid, Path
 from geometry_msgs.msg import PoseStamped,Point
 import numpy as np
 import random
+import pandas as pd
 import matplotlib.pyplot as plt
 import math
+import json
+import rospkg
 import heapq
 from tf.transformations import quaternion_from_euler
 import sys
+
 
 OCCUPIED_THRESHOLD = 50  # Valor mínimo para considerar uma célula ocupada
 BUFFER_RADIUS = 1 # Células ao redor de obstáculos tratadas como ocupadas
@@ -206,11 +211,13 @@ def get_worst_path_with_fallback(graph, nodes, start, field,goal,origin):
     path.append(start)
     cont = 0
     backtrack = []
+    free_nodes = [(x, y) for x, y in nodes if nodes[x, y].peso < float('inf') and [x, y] not in path]
 
-    while len(visited_nodes) < len(nodes):
-        if actual==goal:
-            rospy.loginfo("Path found.")
-            break
+    while free_nodes: # - test - 
+        #rospy.loginfo(f"len visited + free : {len(visited_nodes)+len(free_nodes)} /  {len(nodes)} freenodes ->{len(free_nodes)} ")
+        #if actual==goal:
+        #    rospy.loginfo("Path found.")
+        #    break
         best = float('-inf')
         stuck = True
         #rospy.logwarn("Actual_node -> {}".format(actual))
@@ -231,16 +238,20 @@ def get_worst_path_with_fallback(graph, nodes, start, field,goal,origin):
           
 
         else:  # Wavefront is stuck, use A*
-        #    rospy.logwarn("Wavefront stuck. Falling back to A*.")
+            #rospy.logwarn("Wavefront stuck. Falling back to A*.")
             # Find the nearest free node
             free_nodes = [(x, y) for x, y in nodes if nodes[x, y].peso < float('inf') and [x, y] not in path]
+            
             for [x,y] in free_nodes:
                nodes[x,y].dist = heuristic(tuple([x,y]),tuple(actual))
             
             free_nodes.sort(key=lambda n: nodes[n[0], n[1]].dist)
-            #rospy.logwarn("free_nodes {}".format(free_nodes))
+            #rospy.logwarn(f"free_nodes {free_nodes} actual {actual}")
             
-            nearest_free = free_nodes[1] if free_nodes else None ## força a retorna o ultimo item da lista no caso é o mais loge possivel do goal.
+            if not free_nodes:
+              break
+            
+            nearest_free = free_nodes[0] if free_nodes else None ## força a retorna o ultimo item da lista no caso é o mais loge possivel do goal.
 
             if nearest_free:
                 fallback_path = a_star_search(field, tuple(actual), tuple(nearest_free))
@@ -257,10 +268,63 @@ def get_worst_path_with_fallback(graph, nodes, start, field,goal,origin):
                 else:
                     rospy.logwarn("A* could not find a fallback path.")
                     break
-        if animated:    
-          send_msg(path,Point(origin.x,origin.y,0))
+        #if animated:    
+        #  send_msg(path,Point(origin.x,origin.y,0))
 
     return path
+
+
+def calculate_angle(p1, p2, p3):
+    """
+    Calcula o ângulo entre três pontos consecutivos.
+    """
+    v1 = (p2[0] - p1[0], p2[1] - p1[1])
+    v2 = (p3[0] - p2[0], p3[1] - p2[1])
+    dot_product = v1[0] * v2[0] + v1[1] * v2[1]
+    mag_v1 = math.sqrt(v1[0] ** 2 + v1[1] ** 2)
+    mag_v2 = math.sqrt(v2[0] ** 2 + v2[1] ** 2)
+    if mag_v1 * mag_v2 == 0:
+        return 0
+    cos_theta = dot_product / (mag_v1 * mag_v2)
+    return math.acos(max(-1, min(1, cos_theta)))
+
+def calculate_path_score(start,goal,path):
+    """
+    Calcula a pontuação de um caminho com base em overlaps e mudanças de direção.
+    
+    path: lista de listas [[x1, y1], [x2, y2], ...]
+    """
+    overlaps = 0
+    direction_changes = 0
+    visited_points = set()
+
+    for i in range(len(path) - 1):
+        point = tuple(path[i])  # Converte o ponto para uma tupla para ser armazenado no set
+        if point in visited_points:
+            overlaps += 1
+        visited_points.add(point)
+
+        # Calcula mudanças de direção
+        if i < len(path) - 2:
+            angle = calculate_angle(path[i], path[i + 1], path[i + 2])
+            if angle > math.pi / 4:  # Mudança de direção significativa (> 45 graus)
+                direction_changes += 1
+
+    return {
+        "start":start,
+        "goal":goal,
+        "overlaps": overlaps,
+        "direction_changes": direction_changes,
+        "score": overlaps + direction_changes  # Você pode ajustar essa fórmula conforme necessário
+    }
+
+def save_score_to_file(data, filename="path_score.json"):
+    rospack = rospkg.RosPack()
+    dir = rospack.get_path('wavefront_ros')
+    filename = dir+"/results/"+filename
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=4)
+        rospy.loginfo((f"Dados salvos em {filename}"))
 
 def main(msg):
 
@@ -280,48 +344,63 @@ def main(msg):
     rospy.loginfo("Starting nodes ....")
     all_nodes,nodes = init_nodes(field,init_peso=0)
 
-    default_goal  = [29,44] # random goal 
-    default_start = [34,25] # random start 
+    data = []
 
-    start = eval(rospy.get_param("start", default_start))
+    for x in range(field.shape[0]):
+        for y in range(field.shape[1]):
+            #rospy.loginfo(f"field[{x},{y}] --> {field[x,y]}")
+            if field[x,y] != 1:
+                start = [x,y]
+                for x_g in range(field.shape[0]):
+                    for y_g in range(field.shape[1]):
+                        if field[x_g,y_g] != 1:
+                        
+                            goal = [x_g,y_g]
 
-    if field[start[0],start[1]] == 1:
-      rospy.loginfo("Bad start, it's not in free_space")
-      while field[start[0],start[1]] == 1:
-        rospy.loginfo_once("Searching a valid one--> {}".format(start))
-        start = [random.randint(0,height-1),random.randint(0,width-1)]
-      rospy.loginfo("Changing start for --> {}".format(start))
+                            rospy.loginfo("Start node : [{0},{1}] , goal : [{2},{3}]".format(start[0],start[1],goal[0],goal[1]))
 
-    
-    #rospy.loginfo("start[0] = {}".format(start[0]))
-    #rospy.loginfo("start[1] = {}".format(start[1]))
-    #rospy.loginfo("start[2] = {}".format(start[2]))
+                            rospy.loginfo("Starting Wavefront ....")
 
+                            nodes = wavefront(nodes,goal,graph)
 
-    #start = [start[1],start[2]]
-    goal =  eval(rospy.get_param("goal",   default_goal))
+                            rospy.loginfo("Finding path ....")
 
+                            path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin)
 
-    if field[goal[0],goal[1]] == 1:
-      rospy.loginfo("Bad goal, it's not in free_space")
-      while field[goal[0],goal[1]] == 1:
-        rospy.loginfo_once("Searching a valid one--> {}".format(goal))
-        goal = [random.randint(0,height-1),random.randint(0,width-1)]
-      rospy.loginfo("Changing goal for --> {}".format(goal))
+                            score = calculate_path_score(start,goal,path)
 
+                            data.append(score)
 
-    #goal = [goal[1],goal[3]] ## uma gambiarra, deve ter jeito melhor de fazer isso
-    rospy.loginfo("Start node : [{0},{1}] , goal : [{2},{3}]".format(start[0],start[1],goal[0],goal[1]))
+                            rospy.loginfo("Path score : {} ".format(score))
 
-    rospy.loginfo("Starting Wavefront ....")
+    #starts = [[4,5]]
+    #goals = [[4,10],[4,11]]
 
-    nodes = wavefront(nodes,goal,graph)
+    #for start in starts:
+    #    for goal in goals:
+    #       
+    #        rospy.loginfo("Start node : [{0},{1}] , goal : [{2},{3}]".format(start[0],start[1],goal[0],goal[1]))
+    #        
+    #        rospy.loginfo("Starting Wavefront ....")
+    #        
+    #        nodes = wavefront(nodes,goal,graph)
+    #        
+    #        rospy.loginfo("Finding path ....")
+    #        
+    #        path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin)
+    #        
+    #        score = calculate_path_score(start,goal,path)
+    #        
+    #        data.append(score)
+    #        
+    #        rospy.loginfo("Path score : {} ".format(score))
 
-    rospy.loginfo("Finding path ....")
-
-    path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin)
-
-    rospy.loginfo("Printing path ....")
+    df = pd.DataFrame(data)  
+    rospack = rospkg.RosPack()
+    dir = rospack.get_path('wavefront_ros')
+    filename = dir+"/results/wavefront_a_start.csv"
+    df.to_csv(filename, index=False) 
+    rospy.loginfo((f"Dados salvos em {filename}"))   
 
     rate = rospy.Rate(1)
     

@@ -1,49 +1,63 @@
 # wavefront_ros
 
-Thats a package that implements wavefront algorithm in a occupancy grid via ROS messages.
------------------------------------------------------------------------------------------
+A ROS package implementing the wavefront algorithm on an occupancy grid via ROS messages.
 
-# How to install
+---
 
-> git clone https://github.com/gelardrc/wavefront_ros.git
+## How to Install
 
-# Parameters
+```bash
+git clone https://github.com/gelardrc/wavefront_ros.git
+```
 
-- method (default = classic)
-  a* - Wavefront + a star
-  ba* - Wavefront + bidirectional a star
-  classic - Wavefront classical backtracking
-  random_walk -
-- BUFEFR_RADIUS (default=1)
-  Inflate your map objects by the size of it.
-- start (default=[34,25])
-  Start position on map.
-- goal (default = [29,44])
-  Goal position on map.
-- animated(default=False)
-  If you want to see the path been construct on Rviz while wavefront is calculated.
-- map (default=True)
-  If you want to run your own map, set to false and run in another terminal map_server package
+## Parameters
 
-# How to run
+- **`method`** (default = `classic`):  
+  Specifies the wavefront algorithm variation to use:
+  - `a*`: Wavefront combined with A* algorithm.
+  - `ba*`: Wavefront with bidirectional A*.
+  - `classic`: Classic wavefront with backtracking.
+  - `random_walk`: Random walk strategy.
 
-> rosrun wavefront_ros wavefront_a_star.py
+- **`BUFFER_RADIUS`** (default = `1`):  
+  Inflates map objects by this size.
 
-# Examples
+- **`start`** (default = `[34, 25]`):  
+  Starting position on the map.
 
-> roslaunch wavefront_ros example.launch
+- **`goal`** (default = `[29, 44]`):  
+  Goal position on the map.
 
-If everything goes right, you should see this on Rviz:
+- **`animated`** (default = `False`):  
+  Enables path visualization in RViz while wavefront is being calculated.
 
-![mapa](https://github.com/gelardrc/wavefront_ros/blob/main/img/path.gif)
+- **`map`** (default = `True`):  
+  If `True`, uses the package's default map.  
+  To use a custom map, set this to `False` and run the `map_server` package in another terminal.
 
-# To do list
+## How to Run
 
-- Change all global parameters to local, that will help when upgrade to ros2.
-- Construct some .yaml files to set configs faster.
-- Implement randomwalk algorithm (working)
-- debug results.py ( only in collab ? )
+```bash
+rosrun wavefront_ros wavefront_a_star.py
+```
 
-# Obs
+## Examples
 
-- This package is a slice of bigger project, also hosted on github, that creates a whole multi-agent architeture for industrial inspecions.
+```bash
+roslaunch wavefront_ros example.launch
+```
+
+If everything runs correctly, you should see this in RViz:
+
+![Path Visualization](https://github.com/gelardrc/wavefront_ros/blob/ros1_noetic/img/path.gif)
+
+## To-Do List
+
+- Replace global parameters with local ones to facilitate migration to ROS 2.
+- Add `.yaml` configuration files for quicker setup.
+- Implement the `random_walk` algorithm (in progress).
+- Debug `results.py` (only runs in Google Colab?).
+
+## Notes
+
+This package is part of a larger project, also available on GitHub, which creates a multi-agent architecture for industrial inspections.

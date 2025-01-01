@@ -508,12 +508,13 @@ def classic_wavefront_search(graph,nodes,start,origin,goal,field):
 
    
    return path
+
 def get_valid_node(nodes, free_nodes, actual):
     # Get the maximum peso in free_nodes (nodes with the highest weight)
-    max_weight = max(nodes[x, y].peso for x, y in free_nodes)  # This returns the max peso in free_nodes
+    #max_weight = max(nodes[x, y].peso for x, y in free_nodes)  # This returns the max peso in free_nodes
     
     # Filter out free_nodes to include only nodes with the max peso
-    free_nodes = [(x, y) for x, y in free_nodes if nodes[x, y].peso == max_weight]
+    #free_nodes = [(x, y) for x, y in free_nodes if nodes[x, y].peso == max_weight]
     
     # Update the distance for each node in free_nodes using the heuristic
     for x, y in free_nodes:
@@ -543,6 +544,69 @@ def calculate_angle(p1, p2, p3):
         return 0
     cos_theta = dot_product / (mag_v1 * mag_v2)
     return math.acos(max(-1, min(1, cos_theta)))
+
+def random_walk(start,goal,nodes,graph,origin,field):
+  path = [] # init path 
+  
+  visited_nodes = [] # init visited_nodes
+  
+  actual = start # set actual to start
+  
+  visited_nodes.append(start)  # append it to visited_nodes
+
+  path.append(start) # append it to path
+  
+  backtrack = []
+  backtrack_c = 0
+  
+  free_nodes = [[x,y] for [x,y] in nodes if [x,y] not in visited_nodes]
+  
+  while free_nodes:
+    
+    valid_nodes = [n for n in graph[actual[0],actual[1]] if n not in visited_nodes and n in free_nodes]
+    
+    if valid_nodes: # verify if there are valid nodes 
+      rospy.loginfo(f"valid_nodes : {valid_nodes}")
+      if backtrack: ## if there something in backtracking we need to add it to path
+        for point in backtrack: ## eliminates freenodes already visited by backtrack
+          if point in free_nodes:
+            free_nodes.remove(point)
+
+        path.extend(backtrack) ## add backtrack list to path list
+        backtrack=[]   ## init backtrack again
+        backtrack_c = 0 ## reset backtrack counter
+        
+
+      actual = random.choice(valid_nodes) # actual is random set to any valid_node
+      
+      #rospy.loginfo(f"actual {actual}")
+
+      #rospy.loginfo(f"free_nodes {free_nodes}")
+
+      path.append(actual) ## add path
+
+      free_nodes.remove(actual) # update free_nodes
+
+    else: ## there is no free valid nodes in neighbors so we need to back track to find a valid one 
+        valid_nodes = [n for n in graph[actual[0],actual[1]]]
+        rospy.loginfo(f"actual dir {actual}")
+        rospy.loginfo(f"valid_nodes dir {valid_nodes}")
+        if valid_nodes:
+          actual = random.choice(valid_nodes)
+          path.append(actual)
+
+        if actual in free_nodes:
+          free_nodes.remove(actual)
+
+    if animated:    
+      send_msg(path,Point(origin.x,origin.y,0))
+      send_start_goal(start,goal,origin)
+      #time.sleep(0.5)
+      #visualize_grid_with_weights(nodes,origin) 
+      
+
+
+  return path
 
 def calculate_path_score(start,goal,path,time):
     """
@@ -587,7 +651,6 @@ def save_score_to_file(data, filename,start,goal,method):
 
 def main(msg):
 
-    method = rospy.get_param("method","classic") ## you can set paramter to classic, a* or ba*, "random_walk" .
 
     rospy.loginfo(f"\033[93mWavefront Method: {method}\033[0m")
     
@@ -597,7 +660,7 @@ def main(msg):
     origin = msg.info.origin.position
     field = np.array(msg.data).reshape((height, width))
     rospy.loginfo("Map loaded....")
-    field = apply_buffer_to_map(field)
+    #field = apply_buffer_to_map(field)
     field= np.where(field != 0, 1, 0) ## isso é so pra deixar como na minha implementacao
     rospy.loginfo("Building graph....")
     graph = construct_graph(field)
@@ -649,6 +712,9 @@ def main(msg):
       path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin,"a*")
     if method == "ba*":
       path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin,"ba*")
+    if method == "random_walk":
+      path = random_walk(start,goal,nodes,graph,origin,field)
+
     end = time.time() - begin
     rospy.loginfo("Calculating score ....")
     score = calculate_path_score(start,goal,path,end)
@@ -682,6 +748,8 @@ if __name__ == '__main__':
     BUFFER_RADIUS_DEFAULT = 1
     BUFFER_RADIUS = int(rospy.get_param(node_name+"BUFFER_RADIUS", BUFFER_RADIUS_DEFAULT))
     animated = bool(rospy.get_param(node_name+"animated",False))
+    method = rospy.get_param("method","classic") ## you can set paramter to classic, a* or ba*, "random_walk" .
+
 
     path_pub = rospy.Publisher('/planned_path', Path, queue_size=10)
     s_g_pub = rospy.Publisher('/s_g', Marker, queue_size=10)

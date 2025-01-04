@@ -18,7 +18,7 @@ from tf.transformations import quaternion_from_euler
 import sys
 
 OCCUPIED_THRESHOLD = 50  # Valor mínimo para considerar uma célula ocupada
-BUFFER_RADIUS = 1 # Células ao redor de obstáculos tratadas como ocupadas
+#BUFFER_RADIUS = 1 # Células ao redor de obstáculos tratadas como ocupadas
 
 class node:
   def __init__(self,pose,peso):
@@ -26,39 +26,6 @@ class node:
     self.peso = peso
     self.parent = [] ## o parent agora e uma lista
     self.dist = None
-
-def visualize_grid_with_weights(grid_nodes, origin):
-    #rospy.loginfo(f"tamanho do nodes {len(grid_nodes)}")
-    for node in grid_nodes:
-        marker = Marker()
-        marker.header = Header(frame_id="map")
-        marker.ns = "grid_weights"
-        #rospy.loginfo(f"no : {grid_nodes[node[0],node[1]].peso}")
-        #marker.id = hash(grid_nodes[node[0],node[1]].peso)  # Garante um ID único baseado na pose
-        marker.id = random.randint(0,1000)  # Garante um ID único baseado na pose
-        marker.type = Marker.TEXT_VIEW_FACING
-        marker.action = Marker.ADD
-
-        # Texto com o peso do nó
-        marker.text = str(grid_nodes[node[0],node[1]].peso)
-
-        # Define a escala e a cor do texto
-        marker.scale.z = 0.5  # Tamanho do texto
-        marker.color.a = 1.0  # Opacidade do texto
-        marker.color.r = 1.0  # Cor vermelha
-        marker.color.g = 1.0  # Cor verde
-        marker.color.b = 1.0  # Cor azul
-
-        # Define a posição do texto
-        marker.pose.position = Point(
-            y=grid_nodes[node[0],node[1]].pose[0] + origin.x + 0.5,
-            x=grid_nodes[node[0],node[1]].pose[1] + origin.y + 0.5,
-            z=0.1  # Eleva ligeiramente o texto para evitar sobreposição com o grid
-        )
-        marker.pose.orientation = Quaternion(0, 0, 0, 1)
-
-        # Publica o marcador no tópico de visualização
-        grid_pub.publish(marker)
 
 def init_nodes(field,init_peso=float('inf')):
   nodes = {}
@@ -213,8 +180,41 @@ def send_start_goal(start, goal, origin):
     # Publicando os marcadores
     s_g_pub.publish(start_marker)
     s_g_pub.publish(goal_marker)
-    
-def apply_buffer_to_map(data):
+
+def visualize_grid_with_weights(grid_nodes, origin):
+    #rospy.loginfo(f"tamanho do nodes {len(grid_nodes)}")
+    for node in grid_nodes:
+        marker = Marker()
+        marker.header = Header(frame_id="map")
+        marker.ns = "grid_weights"
+        #rospy.loginfo(f"no : {grid_nodes[node[0],node[1]].peso}")
+        #marker.id = hash(grid_nodes[node[0],node[1]].peso)  # Garante um ID único baseado na pose
+        marker.id = random.randint(0,1000)  # Garante um ID único baseado na pose
+        marker.type = Marker.TEXT_VIEW_FACING
+        marker.action = Marker.ADD
+
+        # Texto com o peso do nó
+        marker.text = str(grid_nodes[node[0],node[1]].peso)
+
+        # Define a escala e a cor do texto
+        marker.scale.z = 0.5  # Tamanho do texto
+        marker.color.a = 1.0  # Opacidade do texto
+        marker.color.r = 1.0  # Cor vermelha
+        marker.color.g = 1.0  # Cor verde
+        marker.color.b = 1.0  # Cor azul
+
+        # Define a posição do texto
+        marker.pose.position = Point(
+            y=grid_nodes[node[0],node[1]].pose[0] + origin.x + 0.5,
+            x=grid_nodes[node[0],node[1]].pose[1] + origin.y + 0.5,
+            z=0.1  # Eleva ligeiramente o texto para evitar sobreposição com o grid
+        )
+        marker.pose.orientation = Quaternion(0, 0, 0, 1)
+
+        # Publica o marcador no tópico de visualização
+        grid_pub.publish(marker)
+
+def apply_buffer_to_map(data,buffer):
     """Aplica um buffer ao redor de células ocupadas"""
     buffered_map = np.copy(data)
     height, width = data.shape
@@ -222,8 +222,8 @@ def apply_buffer_to_map(data):
     for x in range(height):
         for y in range(width):
             if data[x, y] >= OCCUPIED_THRESHOLD:
-                for i in range(-BUFFER_RADIUS, BUFFER_RADIUS + 1):
-                    for j in range(-BUFFER_RADIUS, BUFFER_RADIUS + 1):
+                for i in range(-buffer, buffer + 1):
+                    for j in range(-buffer, buffer + 1):
                         nx, ny = x + i, y + j
                         if 0 <= nx < height and 0 <= ny < width:
                             buffered_map[nx, ny] = OCCUPIED_THRESHOLD
@@ -353,95 +353,7 @@ def bidirectional_a_star(field, start,  goal): #f=g+h, g = custo percorrio até 
                         heapq.heappush(open_list_bwd, (f_score_bwd, neighbor))   
     return []
 
-def get_worst_path_with_fallback(graph, nodes, start, field,goal,origin,method):
-    """Wavefront planning with fallback to A*."""
-    path = []
-    actual = start
-    path_node = None
-    visited_nodes = []
-    visited_nodes.append(actual)
-    path.append(start)
-    cont = 0
-    backtrack = []
-    free_nodes = [(x, y) for x, y in nodes if nodes[x, y].peso < float('inf') and [x, y] not in path]
-
-    while free_nodes: # - test - 
-        #rospy.loginfo(f"len visited + free : {len(visited_nodes)+len(free_nodes)} /  {len(nodes)} freenodes ->{len(free_nodes)} ")
-        #if actual==goal:
-        #    rospy.loginfo("Path found.")
-        #    break
-        best = float('-inf')
-        stuck = True
-        #rospy.logwarn("Actual_node -> {}".format(actual))
-        free_neigh = [[x, y] for x, y in graph[actual[0],actual[1]] if [x, y] not in path]
-        #rospy.logwarn("actual graph -> {}".format(free_neigh))
-
-        for neighbor in graph[actual[0], actual[1]]:
-            if nodes[neighbor[0], neighbor[1]].peso > best and neighbor not in path:
-                best = nodes[neighbor[0], neighbor[1]].peso
-                path_node = neighbor
-                stuck = False
-
-        if not stuck:  # Wavefront can continue
-        #    rospy.logwarn("Wave encontrou o caminho -> {}".format(path_node))
-            path.append(path_node)
-            visited_nodes.append(actual)
-            actual = path_node
-          
-
-        else:  # Wavefront is stuck, use A*
-            #rospy.logwarn("Wavefront stuck. Falling back to A*.")
-            # Find the nearest free node
-            free_nodes = [(x, y) for x, y in nodes if nodes[x, y].peso < float('inf') and [x, y] not in path]
-
-            if not free_nodes:
-              break
-
-            max_weight = max(nodes[x, y].peso for x, y in free_nodes) ## this returns the max peso in free_nodes aka wavefront farest nodes from goal
-
-            free_nodes = [(x, y) for x, y in free_nodes if nodes[x, y].peso == max_weight] ## upgrade free_nodes list only with nodes with high peso.
-
-
-            for [x,y] in free_nodes:
-               nodes[x,y].dist = heuristic(tuple([x,y]),tuple(actual)) #- nodes[x,y].peso
-            
-            free_nodes.sort(key=lambda n: nodes[n[0], n[1]].dist)
-            #rospy.logwarn(f"free_nodes {free_nodes} actual {actual}")
-           
-            try:
-              nearest_free = free_nodes[1] if free_nodes else None ## força a retorna o ultimo item da lista no caso é o mais loge possivel do goal.
-            except:
-              nearest_free = free_nodes[0] if free_nodes else None ## força a retorna o ultimo item da lista no caso é o mais loge possivel do goal.
-            
-            if nearest_free:
-                if method=="a*":
-                  fallback_path = a_star_search(field, tuple(actual), tuple(nearest_free))
-                if method=="ba*":
-                  fallback_path = bidirectional_a_star(field, tuple(actual), tuple(nearest_free))
-                
-                fallback_path = [list(node) for node in fallback_path] ## converte de um lista de tuples para uma lista de listas ...
-
-                if fallback_path:
-                    path.extend(fallback_path)
-                    actual = fallback_path[-1]
-                    visited_nodes.append(actual)
-                    #rospy.logwarn("A* encontrou.")
-                    #rospy.loginfo("caminho encontrado {}".format(fallback_path[-1]))
-                    
-
-                else:
-                    rospy.logwarn("A* could not find a fallback path.")
-                    break
-        if animated:    
-          send_msg(path,Point(origin.x,origin.y,0))
-          send_start_goal(start,goal,origin)
-          #time.sleep(0.5)
-
-
-
-    return path
-
-def classic_wavefront_search(graph,nodes,start,origin,goal,field):
+def wavefront_search(graph,nodes,start,origin,goal,field,method,stop_criteria):
    visited_nodes = []
    free_nodes = [] # init free_nodes
    path = []
@@ -451,9 +363,8 @@ def classic_wavefront_search(graph,nodes,start,origin,goal,field):
    visited_nodes.append(start) ## insert start in visitedo nodes
    actual = start # the first node to be verify 
    free_nodes = [[x,y] for [x,y] in nodes if [x,y] not in visited_nodes]
-   while free_nodes : # while free_nodes exists continue - >  try to cover all area 
-    
-    
+   start_time = time.time()
+   while free_nodes and (time.time()-start_time) < stop_criteria: # while free_nodes exists continue - >  try to cover all area 
     
     neighbors = graph[actual[0],actual[1]] ## returns all possible actaul's neighbors from graph
 
@@ -478,23 +389,35 @@ def classic_wavefront_search(graph,nodes,start,origin,goal,field):
 
 
     else: ## there is no free valid nodes in neighbors so we need to back track to find a valid one 
-        rospy.logwarn(f"Stuck at {actual}. Attempting backtracking.")
+        #rospy.logwarn(f"Stuck at {actual}. Attempting backtracking.")
         if path:
-          if backtrack_c > 20:
-             rospy.loginfo_once("Backtracking overflow, path will now be choose by :{method}")
-             
-             next_node = get_valid_node(nodes=nodes,free_nodes=free_nodes,actual=path[-1])
-             
-             backtrack = a_star_search(field, tuple(path[-1]), tuple(next_node))
-
-             actual = next_node
-
-          else:
+          
+          if method == "classic":
             backtrack_c += 1 # move one step back from actual node 
-            rospy.loginfo(f"backtrack count : {backtrack_c}")
+            #rospy.loginfo(f"backtrack count : {backtrack_c}")
             actual = path[-backtrack_c]  # Backtrack to the previous node
-            rospy.loginfo(f"actual node: {path[-backtrack_c]}")
+            #rospy.loginfo(f"actual node: {path[-backtrack_c]}")
             backtrack.append(actual)
+          
+          else: ## IMPROVE IT IN FUTURE !
+            if backtrack_c > 20:
+                #rospy.loginfo_once("Backtracking overflow, path will now be choose by :{method}")
+
+                next_node = get_valid_node(nodes=nodes,free_nodes=free_nodes,actual=path[-1])
+
+                if method == "a*":
+                  backtrack = a_star_search(field, tuple(path[-1]), tuple(next_node))
+                if method == "ba*":
+                  backtrack = bidirectional_a_star(field, tuple(path[-1]), tuple(next_node))
+
+                actual = next_node
+
+            else:
+              backtrack_c += 1 # move one step back from actual node 
+              #rospy.loginfo(f"backtrack count : {backtrack_c}")
+              actual = path[-backtrack_c]  # Backtrack to the previous node
+              #rospy.loginfo(f"actual node: {path[-backtrack_c]}")
+              backtrack.append(actual)
         else:
           rospy.logerr("No path to continue. Terminating.")
           break
@@ -545,7 +468,7 @@ def calculate_angle(p1, p2, p3):
     cos_theta = dot_product / (mag_v1 * mag_v2)
     return math.acos(max(-1, min(1, cos_theta)))
 
-def random_walk(start,goal,nodes,graph,origin,field):
+def random_walk(start,goal,nodes,graph,origin,field,stop_criteria):
   path = [] # init path 
   
   visited_nodes = [] # init visited_nodes
@@ -560,13 +483,13 @@ def random_walk(start,goal,nodes,graph,origin,field):
   backtrack_c = 0
   
   free_nodes = [[x,y] for [x,y] in nodes if [x,y] not in visited_nodes]
-  
-  while free_nodes:
+  start_time = time.time()
+  while free_nodes and (time.time()-start_time) < stop_criteria:
     
     valid_nodes = [n for n in graph[actual[0],actual[1]] if n not in visited_nodes and n in free_nodes]
     
     if valid_nodes: # verify if there are valid nodes 
-      rospy.loginfo(f"valid_nodes : {valid_nodes}")
+      #rospy.loginfo(f"valid_nodes : {valid_nodes}")
       if backtrack: ## if there something in backtracking we need to add it to path
         for point in backtrack: ## eliminates freenodes already visited by backtrack
           if point in free_nodes:
@@ -589,8 +512,8 @@ def random_walk(start,goal,nodes,graph,origin,field):
 
     else: ## there is no free valid nodes in neighbors so we need to back track to find a valid one 
         valid_nodes = [n for n in graph[actual[0],actual[1]]]
-        rospy.loginfo(f"actual dir {actual}")
-        rospy.loginfo(f"valid_nodes dir {valid_nodes}")
+        #rospy.loginfo(f"actual dir {actual}")
+        #rospy.loginfo(f"valid_nodes dir {valid_nodes}")
         if valid_nodes:
           actual = random.choice(valid_nodes)
           path.append(actual)
@@ -608,7 +531,7 @@ def random_walk(start,goal,nodes,graph,origin,field):
 
   return path
 
-def calculate_path_score(start,goal,path,time):
+def calculate_path_score(start,goal,path,time,nodes):
     """
     Calcula a pontuação de um caminho com base em overlaps e mudanças de direção.
     
@@ -617,7 +540,11 @@ def calculate_path_score(start,goal,path,time):
     overlaps = 0
     direction_changes = 0
     visited_points = set()
-
+    
+    not_visited = [[x,y] for [x,y] in nodes if [x,y] not in path]
+   
+    coverage_area = 100 - (100*(len(not_visited)-1))/(len(nodes)) # del start
+    
     for i in range(len(path) - 1):
         point = tuple(path[i])  # Converte o ponto para uma tupla para ser armazenado no set
         if point in visited_points:
@@ -636,8 +563,9 @@ def calculate_path_score(start,goal,path,time):
         "overlaps": overlaps,
         "direction_changes": direction_changes,
         "time":time,
+        "coverage_area": coverage_area,
         "score": overlaps + direction_changes  # Você pode ajustar essa fórmula conforme necessário
-
+        
     }
 
 def save_score_to_file(data, filename,start,goal,method):
@@ -660,7 +588,7 @@ def main(msg):
     origin = msg.info.origin.position
     field = np.array(msg.data).reshape((height, width))
     rospy.loginfo("Map loaded....")
-    #field = apply_buffer_to_map(field)
+    field = apply_buffer_to_map(field,BUFFER_RADIUS)
     field= np.where(field != 0, 1, 0) ## isso é so pra deixar como na minha implementacao
     rospy.loginfo("Building graph....")
     graph = construct_graph(field)
@@ -703,21 +631,20 @@ def main(msg):
 
     nodes = wavefront(nodes,goal,graph)
 
+    stop_criteria = 60 # one minute 
 
     rospy.loginfo("Finding path ....")
 
-    if method == "classic":
-      path = classic_wavefront_search(graph,nodes,start,origin,goal,field)
-    if method == "a*":
-      path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin,"a*")
-    if method == "ba*":
-      path = get_worst_path_with_fallback(graph,nodes,start,field,goal,origin,"ba*")
     if method == "random_walk":
-      path = random_walk(start,goal,nodes,graph,origin,field)
+      path = random_walk(start,goal,nodes,graph,origin,field,stop_criteria)
+    else:
+      path = wavefront_search(graph,nodes,start,origin,goal,field,method,stop_criteria)
+    
+    
 
     end = time.time() - begin
     rospy.loginfo("Calculating score ....")
-    score = calculate_path_score(start,goal,path,end)
+    score = calculate_path_score(start,goal,path,end,nodes)
     save_score_to_file(score, "score.json",start,goal,method)
     rospy.loginfo("Path score : {} ".format(score))
 

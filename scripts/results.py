@@ -139,6 +139,39 @@ def send_msg(path,origin):
     else:
         rospy.logwarn("Path is empty. Nothing to publish.")
 
+def visualize_grid_with_weights(grid_nodes, origin):
+    #rospy.loginfo(f"tamanho do nodes {len(grid_nodes)}")
+    for node in grid_nodes:
+        marker = Marker()
+        marker.header = Header(frame_id="map")
+        marker.ns = "grid_weights"
+        #rospy.loginfo(f"no : {grid_nodes[node[0],node[1]].peso}")
+        #marker.id = hash(grid_nodes[node[0],node[1]].peso)  # Garante um ID único baseado na pose
+        marker.id = random.randint(0,1000)  # Garante um ID único baseado na pose
+        marker.type = Marker.TEXT_VIEW_FACING
+        marker.action = Marker.ADD
+
+        # Texto com o peso do nó
+        marker.text = str(grid_nodes[node[0],node[1]].peso)
+
+        # Define a escala e a cor do texto
+        marker.scale.z = 0.5  # Tamanho do texto
+        marker.color.a = 1.0  # Opacidade do texto
+        marker.color.r = 1.0  # Cor vermelha
+        marker.color.g = 1.0  # Cor verde
+        marker.color.b = 1.0  # Cor azul
+
+        # Define a posição do texto
+        marker.pose.position = Point(
+            y=grid_nodes[node[0],node[1]].pose[0] + origin.x + 0.5,
+            x=grid_nodes[node[0],node[1]].pose[1] + origin.y + 0.5,
+            z=0.1  # Eleva ligeiramente o texto para evitar sobreposição com o grid
+        )
+        marker.pose.orientation = Quaternion(0, 0, 0, 1)
+
+        # Publica o marcador no tópico de visualização
+        grid_pub.publish(marker)
+
 def apply_buffer_to_map(data):
     """Aplica um buffer ao redor de células ocupadas"""
     buffered_map = np.copy(data)

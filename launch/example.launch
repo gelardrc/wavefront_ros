@@ -5,12 +5,14 @@
     <arg name="map" default="true"/>
     <arg name="start" default="[5,4]"/>
     <arg name="goal" default="[5,5]"/>
+    <arg name="buffer" default="1"/>
     <param name="start" value="$(arg start)"/>
     <param name="goal" value="$(arg goal)"/>
     <param name="method" value="$(arg method)"/>
-    <node if="$(arg map)" name="map_server" pkg="map_server" type="map_server" args="$(find wavefront_ros)/map/example.yaml"/>
+    <arg name="map_name" default="plain_solar_farm"/>
+    <node if="$(arg map)" name="map_server" pkg="map_server" type="map_server" args="$(find wavefront_ros)/map/$(arg map_name).yaml"/>
     <node name="planner" pkg="wavefront_ros" type="planner.py" output="screen">
-        <param name="BUFFER_RADIUS" value="1" />
+        <param name="BUFFER_RADIUS" value="$(arg buffer)" />
         <param name="animated" value="$(arg animated)" />
     </node>
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find wavefront_ros)/rviz/example.rviz" required="true"/>
